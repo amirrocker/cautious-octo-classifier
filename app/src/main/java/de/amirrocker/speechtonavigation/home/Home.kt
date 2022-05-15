@@ -2,6 +2,7 @@ package de.amirrocker.speechtonavigation.home
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -35,6 +36,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import de.amirrocker.speechtonavigation.R
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -72,16 +76,25 @@ fun setupSpeechRecognition(context: Context, listener: RecognitionListener): Spe
 @Composable
 fun HomeView(viewModel: HomeViewModel = HomeViewModel()) {
 
+    val navController = rememberNavController()
+
     val uiState = remember {
         viewModel.uiState
     }
 
+    val context = LocalContext.current
+
     val speechRecognizer = setupSpeechRecognition(
-        context = LocalContext.current,
+        context = context,
         listener = viewModel.listener
     )
 
     val isListening by remember { viewModel.isListening }
+
+    viewModel.onNavigationRequest = {
+        println("navigation request to : $it")
+        navController.navigate(it)
+    }
 
     Scaffold(
         drawerContent = {},
@@ -93,14 +106,24 @@ fun HomeView(viewModel: HomeViewModel = HomeViewModel()) {
                     if (!isListening) {
                         println("start listening clicked")
                         viewModel.startListening()
-                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                        intent.putExtra(
-                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                        )
-                        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-
-                        speechRecognizer.startListening(intent)
+                        val recognizerIntent =
+                            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(
+                                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                    RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH
+                                )
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                                putExtra(
+                                    RecognizerIntent.EXTRA_CALLING_PACKAGE,
+                                    context.packageName
+                                )
+                                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                                // I may have 30+ but in a prod(28) env, we may need this
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+                                }
+                            }
+                        speechRecognizer.startListening(recognizerIntent)
                     } else {
                         viewModel.stopListening()
                         speechRecognizer.stopListening()
@@ -117,8 +140,43 @@ fun HomeView(viewModel: HomeViewModel = HomeViewModel()) {
         }
     )
     {
-        Home(uiState.value.notes)
+
+        viewModel.startListening()
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        intent.putExtra(
+            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+        )
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+
+        speechRecognizer.startListening(intent)
+
+        NavHost(navController = navController, startDestination = "home") {
+            composable("home") {
+                Home(uiState.value.notes)
+            }
+            composable("start") {
+                Start(uiState.value.notes)
+            }
+            composable("notfall") {
+                Notfall(uiState.value.notes)
+            }
+        }
+
+//        Home(uiState.value.notes)
+
+
     }
+}
+
+@Composable
+fun NavTargetA() {
+    Text("NavTarget A")
+}
+
+@Composable
+fun NavTargetB() {
+    Text("NavTarget B")
 }
 
 @Composable
@@ -135,6 +193,51 @@ fun Home(noteVOS: List<NoteVO>) {
             }
         )
 
+        Text("Dies ist die Home View")
+        // switch on and off
+        OnStandBySwitch(value = false, onValueChanged = {
+            println("changed switch to $it")
+        })
+    }
+}
+
+@Composable
+fun Start(noteVOS: List<NoteVO>) {
+    Column {
+
+        // Notes header
+        HeaderAreaStart()
+        // NotesList
+        NotesList(header = "Notes List Header: ", noteVOS = noteVOS,
+            comparator,
+            onNoteClicked = {
+                println("clicked note : $it")
+            }
+        )
+        Text("Dies ist die Start View")
+
+        // switch on and off
+        OnStandBySwitch(value = false, onValueChanged = {
+            println("changed switch to $it")
+        })
+    }
+}
+
+@Composable
+fun Notfall(noteVOS: List<NoteVO>) {
+    Column {
+
+        // Notes header
+        HeaderAreaNotfall()
+        // NotesList
+        NotesList(header = "Notes List Header: ", noteVOS = noteVOS,
+            comparator,
+            onNoteClicked = {
+                println("clicked note : $it")
+            }
+        )
+
+        Text("Dies ist die Notfall View")
         // switch on and off
         OnStandBySwitch(value = false, onValueChanged = {
             println("changed switch to $it")
@@ -145,7 +248,21 @@ fun Home(noteVOS: List<NoteVO>) {
 @Composable
 fun HeaderArea() {
     Row {
-        Text(text = "Notes: ")
+        Text(text = "Navigationsziel HOME: ")
+    }
+}
+
+@Composable
+fun HeaderAreaStart() {
+    Row {
+        Text(text = "Navigationsziel START")
+    }
+}
+
+@Composable
+fun HeaderAreaNotfall() {
+    Row {
+        Text(text = "Navigationsziel NOTFALL")
     }
 }
 

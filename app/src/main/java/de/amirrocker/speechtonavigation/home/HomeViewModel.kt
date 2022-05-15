@@ -15,7 +15,9 @@ data class HomeViewState(
     var notes: List<NoteVO> = emptyList()
 )
 
-class HomeViewModel() : ViewModel() {
+class HomeViewModel(
+    var onNavigationRequest: (String) -> Unit = {}
+) : ViewModel() {
 
     var uiState: MutableState<HomeViewState> = mutableStateOf(HomeViewState())
 
@@ -55,11 +57,43 @@ class HomeViewModel() : ViewModel() {
             println("matches: $matches")
             println("scores: $scores")
 
-            addNewNote(
-                matches?.firstOrNull()
-                    ?: "Could not recognize any Text. Did you really speak? loud enough?"
-            )
+            val resultText = matches?.firstOrNull()
+                ?: "Could not recognize any Text. Did you really speak? loud enough?"
+
+
+            processCommand(resultText)
+
+//            if(isCommand(resultText)) {
+//                onNavigationRequest(resultText)
+//            } else {
+//
+//                addNewNote(
+//                    resultText
+//    //                matches?.firstOrNull()
+//    //                    ?: "Could not recognize any Text. Did you really speak? loud enough?"
+//                )
+//
+//            }
+
         }
+
+        fun processCommand(resultText: String) =
+            when (resultText.lowercase()) {
+                "gehe zu start" -> {
+                    println("navigate start recognized")
+                    onNavigationRequest("start")
+                }
+                "gehe zu home" -> {
+                    println("navigate home recognized")
+                    onNavigationRequest("home")
+                }
+                "gehe zu notfall" -> {
+                    println("navigate notfall recognized")
+                    onNavigationRequest("notfall")
+                }
+                else -> addNewNote(resultText)
+            }
+
 
         override fun onPartialResults(p0: Bundle?) {
             println("onPartialResults: $p0")

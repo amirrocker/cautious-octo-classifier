@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">SpeechToNavigation</string>
     <string name="on_standby_switch_label">On Standby</string>
+    <string name="interval_label">Interval</string>
 </resources>

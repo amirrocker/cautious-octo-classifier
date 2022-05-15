@@ -1,9 +1,15 @@
 package de.amirrocker.speechtonavigation
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import android.content.res.AssetFileDescriptor
+import android.content.res.AssetManager
 import android.os.Build
 import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.SpeechRecognizer
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,14 +22,36 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import de.amirrocker.speechtonavigation.Constants.RECORDING_LENGTH
+import de.amirrocker.speechtonavigation.classifier.localmodel.LocalModelClassifierView
+import de.amirrocker.speechtonavigation.classifier.localmodel.LocalModelClassifierViewModel
 import de.amirrocker.speechtonavigation.classifier.sound.SoundClassifierViewModel
 import de.amirrocker.speechtonavigation.home.HomeView
 import de.amirrocker.speechtonavigation.ui.theme.SpeechToNavigationTheme
+import org.tensorflow.lite.Interpreter
+import java.io.BufferedReader
+import java.io.FileInputStream
+import java.io.IOException
+import java.io.InputStreamReader
+import java.nio.ByteBuffer
+import java.nio.MappedByteBuffer
+import java.nio.channels.FileChannel
+import java.util.concurrent.locks.Lock
+import java.util.concurrent.locks.ReentrantLock
 
 class MainActivity : ComponentActivity() {
     // no koin inserted yet
 //    private val viewModel by inject()
     private val viewModel: SoundClassifierViewModel by viewModels()
+    private val localModelClassifierViewModel: LocalModelClassifierViewModel by viewModels()
+
+    fun setupSpeechRecognition(context: Context, listener: RecognitionListener): SpeechRecognizer {
+        val speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
+
+        speechRecognizer.setRecognitionListener(listener)
+
+        return speechRecognizer
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,7 +70,14 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colors.background
                 ) {
-                    HomeView()
+
+//                    HomeView()
+
+                    // LocalModelClassifier
+                    loadTfLiteModel()
+
+                    LocalModelClassifierView(localModelClassifierViewModel)
+
 
                     // soundclassifier currently in development
 
@@ -56,6 +91,7 @@ class MainActivity : ComponentActivity() {
 //                            } else {
 //                                viewModel.stopSoundClassification()
 //                            }
+//                            keepScreenOn(isEnabled)
 //                        }
 //                    }
                     // uncomment up to here ...
@@ -80,116 +116,96 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Permission granted", Toast.LENGTH_LONG).show()
         }
     }
-}
 
-//@OptIn(ExperimentalAnimationApi::class)
-//@Composable
-//fun Greeting(name: String, context: Context) {
-//
-//
-//    var listenButtonHeader by remember { mutableStateOf("click me here ... ") }
-//    var rememberedText by remember { mutableStateOf("Nothing recognized.") }
-//    var isListening by remember { mutableStateOf(false) }
-//    var expanded by remember {
-//        mutableStateOf(false)
-//    }
-//
-//    fun setupSpeechRecognition(listener: RecognitionListener):SpeechRecognizer {
-//        val speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
-//
-//        speechRecognizer.setRecognitionListener(listener)
-//
-//        return speechRecognizer
-//    }
-//
-//    val listener = object : RecognitionListener {
-//        override fun onReadyForSpeech(p0: Bundle?) {
-//            println("onReadyForSpeech : $p0")
-//            listenButtonHeader = "Ready to listen .... "
-//        }
-//
-//        override fun onBeginningOfSpeech() {
-//            println("onBeginningOfSpeech")
-//            listenButtonHeader = "listening .... "
-//        }
-//
-//        override fun onRmsChanged(p0: Float) {
-//            println("onRmsChanged: $p0")
-//        }
-//
-//        override fun onBufferReceived(p0: ByteArray?) {
-//            println("onBufferReceived : $p0")
-//        }
-//
-//        override fun onEndOfSpeech() {
-//            println("onEndOfSpeech")
-//        }
-//
-//        override fun onError(p0: Int) {
-//            println("onError : $p0")
-//        }
-//
-//        override fun onResults(results: Bundle?) {
-//            println("onResults: $results")
-//            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-//            val scores = results?.getStringArray(SpeechRecognizer.CONFIDENCE_SCORES)
-//            println("matches: $matches")
-//            println("scores: $scores")
-//
-//            listenButtonHeader = "click me here ...."
-//            rememberedText = "What I Heard: $matches"
-//        }
-//
-//        override fun onPartialResults(p0: Bundle?) {
-//            println("onPartialResults: $p0")
-//        }
-//
-//        override fun onEvent(p0: Int, p1: Bundle?) {
-//            println("onEvent: $p0")
-//        }
-//    }
-//
-//    val speechRecognizer = setupSpeechRecognition(listener = listener)
-//
-//    Column(modifier = Modifier.fillMaxSize()) {
-//
-//        Button(onClick = {
-//            if(!isListening) {
-//                println("start listening clicked")
-//
-//                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-//                intent.putExtra(
-//                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-//                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-//                )
-//                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-//
-//                speechRecognizer.startListening(intent)
-//            } else {
-//                speechRecognizer.stopListening()
-//                isListening = false
-//            }
-//
-//
-//        }) {
-//            Column(modifier = Modifier.fillMaxWidth()) {
-//                Text(listenButtonHeader)
-//            }
-//        }
-//        Spacer(modifier = Modifier.size(height = 16.dp, width = 0.dp))
-//        Column(Modifier.clickable { expanded = !expanded }) {
-//            AnimatedVisibility(visible = expanded) {
-//                Text(rememberedText)
-//            }
-//        }
-//    }
-//}
+    private fun keepScreenOn(enable: Boolean = true) =
+        if (enable) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+
+    fun loadTfLiteModel() {
+
+
+    }
+
+    val LABEL_FILENAME = "file:///android_asset/conv_actions_labels.txt"
+    val MODEL_FILENAME = "file:///android_asset/conv_actions_labels.txt"
+
+    val labels: MutableList<String> = mutableListOf()
+    val displayedLabels: MutableList<String> = mutableListOf()
+
+    val tfLiteModel: ByteBuffer? = null
+    val tfLiteOptions: Interpreter.Options = Interpreter.Options()
+
+
+    fun loadModelFile(assetManager: AssetManager, modelFileName: String): MappedByteBuffer {
+
+        val fileDescriptor: AssetFileDescriptor = assetManager.openFd(modelFileName)
+        val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
+        val fileChannel = inputStream.channel
+
+        val startOffset = fileDescriptor.startOffset
+        val declaredLength = fileDescriptor.declaredLength
+
+        val result = fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
+        println("result: $result")
+        return result
+    }
+
+
+    fun loadLabelFile(assetManager: AssetManager, labelFileName: String): List<String> {
+
+        val actualFileName = LABEL_FILENAME.split("file:///android_asset/")
+            .dropLastWhile { it.isEmpty() }
+            .toTypedArray()[1]
+
+        println("reading labels from : $actualFileName")
+
+        try {
+            val bufferedReader =
+                BufferedReader(InputStreamReader(assetManager.open(actualFileName)))
+            var line: String? = ""
+            line = bufferedReader.readLine()
+            while ((line) != null) {
+                line = bufferedReader.readLine()
+                labels.add(line)
+                if (!line.first().equals("_")) {
+                    displayedLabels.add(line.substring(0, 1).uppercase() + line.substring(1))
+                }
+            }
+            bufferedReader.close()
+        } catch (ex: IOException) {
+            throw RuntimeException("Problem reading label fileaas")
+        }
+        return emptyList()
+    }
+
+    private var tfLite: Interpreter? = null
+    private val tfLiteLock: Lock = ReentrantLock()
+
+    fun recreateInterpreter() {
+
+        tfLiteLock.lock()
+        try {
+            if (tfLite != null) {
+                tfLite?.close()
+                tfLite = null
+            }
+            tfLite = tfLiteModel?.let { Interpreter(it, tfLiteOptions) }.also {
+                it?.resizeInput(0, arrayOf(RECORDING_LENGTH, 1).toIntArray())
+                it?.resizeInput(1, arrayOf(1).toIntArray())
+            }
+        } finally {
+            tfLiteLock.unlock()
+        }
+    }
+}
 
 @Preview(showBackground = true)
 @Composable
 fun DefaultPreview() {
     SpeechToNavigationTheme {
-        //Greeting("Android", LocalContext.current )
         HomeView()
     }
 }

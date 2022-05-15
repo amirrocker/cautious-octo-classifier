@@ -18,7 +18,7 @@ class SoundClassifierViewModel(
     private val MODEL_FILE = "yamnet.tflite"
     private val MIN_DISPLAY_THRESHOLD = 0.3f
 
-    private val _probabilities: MutableStateFlow<List<Category?>> = MutableStateFlow(emptyList())
+    private val _probabilities: MutableStateFlow<List<Category>> = MutableStateFlow(emptyList())
     val probabilities = _probabilities.asStateFlow()
 
     private val _classiferEnabled: MutableStateFlow<Boolean> = MutableStateFlow(false)
@@ -92,7 +92,7 @@ class SoundClassifierViewModel(
     }
 
 
-    fun setProbabilities(processedOutput: List<Category?>) {
+    fun setProbabilities(processedOutput: List<Category>) {
         println("processedOutput: $processedOutput")
         _probabilities.value = processedOutput
     }

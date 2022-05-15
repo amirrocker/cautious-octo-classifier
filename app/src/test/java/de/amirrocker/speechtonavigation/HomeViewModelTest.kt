@@ -26,8 +26,5 @@ class HomeViewModelTest {
         firstNote.header shouldBeEqualTo note.header
         firstNote.body shouldBeEqualTo note.body
 
-//        assertTrue("Expect at least one Note but was ${viewModel.notes.size}", viewModel.notes.size > 0)
-
-
     }
 }
